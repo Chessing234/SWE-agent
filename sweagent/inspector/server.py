@@ -8,8 +8,29 @@ from argparse import ArgumentParser
 from functools import partial
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 import yaml
+
+
+def resolve_trajectory_path(traj_dir: str | Path, file_path: str) -> Path:
+    """Resolve a requested trajectory path against the served directory.
+
+    ``/trajectory/`` is handled before ``SimpleHTTPRequestHandler`` gets a chance to
+    sanitize the path, so the ``..`` rejection has to happen here: without it a
+    request with literal parent segments reads trajectory files from anywhere on
+    the host.  Absolute paths are rejected for the same reason.
+
+    Raises:
+        FileNotFoundError: if the request escapes ``traj_dir``.
+    """
+    requested = unquote(urlsplit(file_path).path)
+    root = Path(traj_dir).resolve()
+    candidate = (root / requested).resolve()
+    if candidate != root and root not in candidate.parents:
+        msg = f"File {file_path} not found"
+        raise FileNotFoundError(msg)
+    return candidate
 
 
 def add_problem_statement(content):
@@ -240,7 +261,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def serve_file_content(self, file_path):
         try:
             content = load_content(
-                Path(self.traj_dir) / file_path,
+                resolve_trajectory_path(self.traj_dir, file_path),
                 self.gold_patches,
                 self.test_patches,
             )
