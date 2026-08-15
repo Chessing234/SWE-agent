@@ -308,12 +308,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_response(204)  # Send no content response if no update
         self.end_headers()
 
-    def end_headers(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        super().end_headers()
 
-
-def main(data_path, directory, port):
+def main(data_path, directory, port, host="127.0.0.1"):
     data = []
     if data_path is not None:
         if data_path.endswith(".jsonl"):
@@ -340,8 +336,8 @@ def main(data_path, directory, port):
         test_patches=test_patches,
     )
     try:
-        with socketserver.TCPServer(("", port), handler_with_directory) as httpd:
-            print(f"Serving at http://localhost:{port}")
+        with socketserver.TCPServer((host, port), handler_with_directory) as httpd:
+            print(f"Serving at http://{host}:{port}")
             httpd.serve_forever()
     except OSError as e:
         if e.errno == 48:
@@ -359,6 +355,12 @@ def get_parser():
     )
     parser.add_argument("--directory", type=str, help="Directory to serve", default=os.getcwd(), nargs="?")
     parser.add_argument("--port", type=int, help="Port to serve", default=8000)
+    parser.add_argument(
+        "--host",
+        type=str,
+        help="Interface to bind to. Defaults to loopback; pass 0.0.0.0 to expose the inspector on the network.",
+        default="127.0.0.1",
+    )
     return parser
 
 
