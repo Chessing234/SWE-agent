@@ -6,12 +6,34 @@ import requests
 from sweagent.agent.problem_statement import SWEBenchMultimodalProblemStatement
 
 
-@pytest.mark.parametrize("scenario", ["success", "mime", "declared_size", "stream_size", "stream_error", "http_error"])
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        "success",
+        "jpg",
+        "empty",
+        "mime",
+        "declared_size",
+        "invalid_length",
+        "stream_size",
+        "stream_error",
+        "stream_timeout",
+        "http_error",
+    ],
+)
 def test_image_download_closes_streamed_response(monkeypatch, scenario):
     response = Mock()
     response.headers = {"content-type": "image/png"}
     response.iter_content.return_value = [b"image data"]
-    if scenario == "mime":
+    if scenario == "jpg":
+        response.headers["content-type"] = "image/jpg; charset=utf-8"
+    elif scenario == "empty":
+        response.iter_content.return_value = []
+    elif scenario == "invalid_length":
+        response.headers["content-length"] = "invalid"
+    elif scenario == "stream_timeout":
+        response.iter_content.side_effect = requests.exceptions.Timeout("stream stalled")
+    elif scenario == "mime":
         response.headers["content-type"] = "text/html"
     elif scenario == "declared_size":
         response.headers["content-length"] = str(11 * 1024 * 1024)
@@ -24,5 +46,7 @@ def test_image_download_closes_streamed_response(monkeypatch, scenario):
     monkeypatch.setattr("requests.get", lambda *args, **kwargs: response)
     statement = SWEBenchMultimodalProblemStatement(text="problem")
     result = statement._download_and_convert_image("https://example.com/image.png")
-    assert (result is not None) == (scenario == "success")
+    assert (result is not None) == (scenario in {"success", "jpg"})
+    if scenario == "jpg":
+        assert "data:image/jpeg;base64," in result
     response.close.assert_called_once_with()
