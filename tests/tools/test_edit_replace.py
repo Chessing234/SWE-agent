@@ -1,4 +1,5 @@
 import importlib
+from unittest.mock import Mock
 
 import pytest
 
@@ -17,12 +18,11 @@ def test_edit_rejects_empty_search_before_linting(with_tmp_env_file, tmp_path, c
     registry["WINDOW"] = "10"
     registry["FIRST_LINE"] = "0"
 
-    def unexpected_lint(*args, **kwargs):
-        pytest.fail("Empty search must be rejected before linting or replacement")
-
-    monkeypatch.setattr(edit, "flake8", unexpected_lint)
+    lint = Mock()
+    monkeypatch.setattr(edit, "flake8", lint)
     with pytest.raises(SystemExit) as error:
         edit.main("", "new", True)
+    lint.assert_not_called()
     assert error.value.code == 2
     output = capsys.readouterr().out
     assert "Search text must not be empty" in output
